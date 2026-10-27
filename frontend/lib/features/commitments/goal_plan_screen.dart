@@ -8,6 +8,7 @@ import '../../core/utils/format.dart';
 import '../../core/widgets/widgets.dart';
 import 'commitment_widgets.dart';
 import 'commitments_api.dart';
+import '../learn_quest/book_suggestions.dart';
 
 // OWNER: Turki - a new goal with the AI plan
 // step 1: the member writes the goal and its end date, the AI suggests a task for every week (nothing is saved)
@@ -167,6 +168,7 @@ class _GoalPlanScreenState extends State<GoalPlanScreen> {
           minLines: 2,
           decoration: const InputDecoration(hintText: 'أبي أخلص كتاب في البرمجة', counterText: ''),
         ),
+        BookSuggestions(title: _goal), // Learn Quest: books for a reading goal
         const SizedBox(height: Space.s4),
         Text('متى يبدأ؟', style: text.labelLarge),
         const SizedBox(height: Space.s2),

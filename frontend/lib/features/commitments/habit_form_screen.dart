@@ -10,6 +10,7 @@ import 'commitment_widgets.dart';
 import 'commitments_api.dart';
 import '../walking/walking_setup.dart';
 import '../walking/walking_api.dart';
+import '../learn_quest/book_suggestions.dart';
 
 // OWNER: Turki - add a habit, or edit one (habit != null)
 // after the habit starts: the times and the amount apply from next week, the proof method is locked
@@ -293,6 +294,7 @@ class _HabitFormScreenState extends State<HabitFormScreen> {
               onChanged: _editing ? null : _suggestMethod,
               validator: (v) => (v == null || v.trim().isEmpty) ? 'اكتب اسم العادة' : null,
             ),
+            if (!_editing) BookSuggestions(title: _title), // Learn Quest: books for a reading habit
             if (!_editing) ...[
               label('متى تبدأ؟'),
               StartDatePicker(value: _start, onChanged: (d) => setState(() => _start = d)),
