@@ -117,8 +117,11 @@ class AuthState extends ChangeNotifier {
     role = null;
     profile = null;
     isLocked = false;
-    // everything of the account goes, the theme stays (it belongs to the phone, not the account)
-    final keys = (await _storage.readAll()).keys.where((key) => key != ThemeState.storageKey);
+    // Keep installation-wide settings; logout only clears account data.
+    final keys = (await _storage.readAll()).keys.where(
+      (key) =>
+          key != ThemeState.storageKey && key != 'walking_installation',
+    ).toList();
     for (final key in keys) {
       await _storage.delete(key: key);
     }
