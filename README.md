@@ -15,6 +15,10 @@
 
 <br>
 
+<a href="https://documenter.getpostman.com/view/57931804/2sBYHVwKHY"><img src="https://img.shields.io/badge/📖_API_Docs-Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white" alt="API Documentation"></a>
+
+<br><br>
+
 ![Java](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F?logo=springboot&logoColor=white)
 ![Hibernate](https://img.shields.io/badge/Hibernate-7-59666C?logo=hibernate&logoColor=white)
@@ -409,6 +413,8 @@ On an Android emulator, run `adb reverse tcp:8080 tcp:8080` so the app can reach
 Import the two workflows from [`n8n/`](n8n) and set the backend URL and `N8N_KEY` in them.
 
 ## 📊 API Overview
+
+📖 **Full API documentation: [documenter.getpostman.com/view/57931804/2sBYHVwKHY](https://documenter.getpostman.com/view/57931804/2sBYHVwKHY)**: every endpoint with its description, access role, parameters and request body. To try them yourself, import [`postman/Atahad.postman_collection.json`](postman/Atahad.postman_collection.json) into Postman and set `email` and `password`.
 
 All endpoints start with `/api/v1` and use HTTP Basic authentication, except registration and the public callbacks (Google OAuth, n8n with its own key).
 
