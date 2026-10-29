@@ -57,7 +57,7 @@ class LockScreen extends StatelessWidget {
                           const SizedBox(height: Space.s8),
                           const Center(child: _LockArt()),
                           const SizedBox(height: Space.s6),
-                          Text('التطبيق مقفول مؤقتًا',
+                          Text('التطبيق معلّق مؤقتًا',
                               textAlign: TextAlign.center, style: text.headlineMedium!.copyWith(color: _ink, fontWeight: FontWeight.w800)),
                           const SizedBox(height: Space.s2),
                           Text(

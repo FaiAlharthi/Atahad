@@ -156,7 +156,40 @@ class OpenRouterClientTest {
         } finally { logger.detachAppender(logs); logs.stop(); }
     }
 
-    private record Reply(int status, String content) {}
+    @Test void quizTotalDeadlineEndsSlowRequestWithoutStartingAnotherModel() throws Exception {
+        try (var server = new Server(new Reply(200, QUIZ, 1800))) {
+            long start = System.nanoTime();
+            var error = assertThrows(com.example.atahad.Api.ApiException.class, () ->
+                client(server).completeQuiz("text", QUIZ_PROMPT, "topic", List.of(), "", java.time.Duration.ofMillis(700)));
+            assertTrue(error.getMessage().contains("timed out"));
+            assertTrue((System.nanoTime() - start) / 1_000_000 < 1700);
+            assertEquals(1, server.requests.size());
+        }
+    }
+
+    @Test void quizHasItsOwnModelAndReasoningSettingsWithoutChangingProofs() throws Exception {
+        try (var server = new Server(new Reply(200, QUIZ), new Reply(200, ACCEPT))) {
+            var client = client(server);
+            ReflectionTestUtils.setField(client, "quizTextModel", "test/quiz:free");
+            assertEquals(QUIZ.trim(), client.completeQuiz("text", QUIZ_PROMPT, "topic", List.of(), "", java.time.Duration.ofSeconds(5)));
+            assertEquals(ACCEPT, client.complete("vision", DECISION_PROMPT, "photo", List.of(), "fallback"));
+            assertEquals(List.of("test/quiz:free", "test/vision:free"), server.models());
+            assertEquals(Map.of("effort", "none", "exclude", true), server.requests.get(0).get("reasoning"));
+            assertFalse(server.requests.get(1).containsKey("reasoning"));
+        }
+    }
+
+    @Test void exhaustedQuizBudgetDoesNotMakeAnyRequest() throws Exception {
+        try (var server = new Server(new Reply(200, QUIZ))) {
+            assertThrows(com.example.atahad.Api.ApiException.class, () ->
+                client(server).completeQuiz("text", QUIZ_PROMPT, "topic", List.of(), "", java.time.Duration.ZERO));
+            assertTrue(server.requests.isEmpty());
+        }
+    }
+
+    private record Reply(int status, String content, long delayMillis) {
+        Reply(int status, String content) { this(status, content, 0); }
+    }
     private static class Server implements AutoCloseable {
         final List<Map<?, ?>> requests = new CopyOnWriteArrayList<>();
         final HttpServer server;
@@ -169,6 +202,10 @@ class OpenRouterClientTest {
                 String result = reply.status() == 200
                         ? new ObjectMapper().writeValueAsString(Map.of("model", body.get("model"), "choices", List.of(Map.of("message", Map.of("content", reply.content())))))
                         : "{\"error\":{\"message\":\"Unavailable\"}}";
+                if (reply.delayMillis() > 0) {
+                    try { Thread.sleep(reply.delayMillis()); }
+                    catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+                }
                 byte[] response = result.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(reply.status(), response.length);

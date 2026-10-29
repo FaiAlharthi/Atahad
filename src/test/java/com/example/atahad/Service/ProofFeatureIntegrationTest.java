@@ -103,14 +103,14 @@ class ProofFeatureIntegrationTest {
     }
     @Test void unreadablePagesRequestOneReuploadThenUseGeneralQuestions() throws Exception {
         proof.setType("QUIZ");proof.getCommitmentWeek().getCommitment().setProofMethod("QUIZ");em.flush();
-        when(quizAI.questions(anyString(),anyList())).thenAnswer(call->((List<?>)call.getArgument(1)).isEmpty()?QUESTIONS:"READABLE: NO");
+        when(quizAI.questions(anyString(),anyList(),any(Duration.class))).thenAnswer(call->((List<?>)call.getArgument(1)).isEmpty()?QUESTIONS:"READABLE: NO");
         var input=new QuizSourceRequest();input.setProofId(proof.getId());input.setCaptureIds(List.of(capturePage()));
         var first=quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,null,input);
         assertNull(first.getQuizId());assertTrue(proof.getPageReuploadRequested());
         input.setCaptureIds(List.of(capturePage()));
         var second=quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,null,input);
         assertNotNull(second.getQuizId());assertEquals(4,second.getQuestions().size());
-        verify(quizAI).questions(anyString(),eq(List.of()));
+        verify(quizAI).questions(anyString(),eq(List.of()),any(Duration.class));
     }
     @Test void successfulPhotosRescueFailedPrimaryAndCountOnce() {
         photos();outcome.primary(proof,"REJECTED","failed");assertEquals("PENDING",proof.getResult());
@@ -152,7 +152,7 @@ class ProofFeatureIntegrationTest {
         TimerSession timer=timers.start(proof,30,"messages");
         assertThrows(org.springframework.security.access.AccessDeniedException.class,()->timers.action(memberId+1,timer.getId(),"pause",null,null));
     }
-    void quizActivity() { proof.setType("QUIZ");proof.getCommitmentWeek().getCommitment().setProofMethod("QUIZ");em.flush();when(quizAI.questions(anyString(),anyList())).thenReturn(QUESTIONS); }
+    void quizActivity() { proof.setType("QUIZ");proof.getCommitmentWeek().getCommitment().setProofMethod("QUIZ");em.flush();when(quizAI.questions(anyString(),anyList(),any(Duration.class))).thenReturn(QUESTIONS); }
     QuizSourceRequest quizRequest() { QuizSourceRequest request=new QuizSourceRequest();request.setProofId(proof.getId());return request; }
     @Test void fourQuestionsPassWithThreeAndOnlyOneRetryIsAllowed() {
         quizActivity();var first=quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,null,quizRequest());assertEquals(4,first.getQuestions().size());
@@ -168,15 +168,15 @@ class ProofFeatureIntegrationTest {
         proof.setEvidenceData(quiz.getQuizId()+":ABCA");at("2026-10-24T11:00:00");assertEquals("انتهت صلاحية الساعة",quizzes.grade(proof));
     }
     @Test void providerFailureDoesNotConsumeAQuizAttempt() {
-        quizActivity();when(quizAI.questions(anyString(),anyList())).thenReturn("");
+        quizActivity();when(quizAI.questions(anyString(),anyList(),any(Duration.class))).thenReturn("");
         assertThrows(ApiException.class,()->quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,null,quizRequest()));
         assertTrue(quizzes.canRetry(proof));
     }
     @Test void unclearTopicDoesNotConsumeAttemptAndCanBeClarified() {
-        quizActivity();when(quizAI.questions(anyString(),anyList())).thenReturn("TOPIC: UNCLEAR");
+        quizActivity();when(quizAI.questions(anyString(),anyList(),any(Duration.class))).thenReturn("TOPIC: UNCLEAR");
         var error=assertThrows(ApiException.class,()->quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,null,quizRequest()));
         assertTrue(error.getMessage().contains("Quiz topic is unclear"));assertTrue(quizzes.canRetry(proof));
-        when(quizAI.questions(eq("أساسيات التغذية المتوازنة"),anyList())).thenReturn(QUESTIONS);
+        when(quizAI.questions(eq("أساسيات التغذية المتوازنة"),anyList(),any(Duration.class))).thenReturn(QUESTIONS);
         var quiz=quizzes.create(memberId,proof.getCommitmentWeek().getId(),null,"أساسيات التغذية المتوازنة",quizRequest());
         assertEquals(1,em.find(Quiz.class,quiz.getQuizId()).getAttemptNumber());
     }

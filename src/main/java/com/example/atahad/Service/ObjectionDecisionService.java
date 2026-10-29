@@ -16,8 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 // an objection on a REJECTED proof, excuse or donation proof (within 48 hours of the decision)
-// the AI looks again with the reason of the member: ACCEPTED (the old decision is reversed), REJECTED,
-// or not sure -> stays PENDING for the admin
+// AI acceptance reverses the old decision; AI rejection or uncertainty stays PENDING for the admin.
 @Service
 @RequiredArgsConstructor
 public class ObjectionDecisionService {
@@ -102,12 +101,13 @@ public class ObjectionDecisionService {
 
         String decision = aiService.decision(answer);
         objection.setAiReason(cut(aiService.field(answer, "REASON")));
-        if("ESCALATED".equals(decision)){
-            objection.setReviewStartedAt(LocalDateTime.now()); // with the admin now: the member can not change or delete it
-            objectionRepository.save(objection); // stays PENDING, it is in the admin list
+        if(!"ACCEPTED".equals(decision)){
+            // AI rejection is advisory: only an admin may finally reject an objection.
+            objection.setReviewStartedAt(LocalDateTime.now());
+            objectionRepository.save(objection); // stays PENDING for the admin
             return;
         }
-        apply(objection, "ACCEPTED".equals(decision), null);
+        apply(objection, true, null);
     }
 
     // shared with the admin review

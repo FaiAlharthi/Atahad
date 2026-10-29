@@ -13,6 +13,7 @@ import '../../core/utils/format.dart';
 import '../../core/widgets/widgets.dart';
 import 'camera_capture_screen.dart';
 import 'proof_widgets.dart';
+import 'quiz_text.dart';
 import 'proofs_api.dart';
 import 'request_forms.dart';
 import 'visit_screen.dart';
@@ -908,6 +909,7 @@ class QuizPanel extends StatefulWidget {
 class _QuizPanelState extends State<QuizPanel> {
   final _topic = TextEditingController();
   bool _needsTopic = false;
+  bool _generationFailed = false;
   final List<int> _pages = [];
   final Map<int, String?> _answers = {};
   Json? _quiz;
@@ -965,6 +967,7 @@ class _QuizPanelState extends State<QuizPanel> {
       _busy = true;
       _pendingAction = withoutImages ? 'generateWithoutImages' : 'generate';
       _notice = null;
+      _generationFailed = false;
     });
     final client = context.read<ApiClient>();
     final member = context.read<AuthState>().userId;
@@ -980,7 +983,7 @@ class _QuizPanelState extends State<QuizPanel> {
                 'proofId': widget.proofId,
                 'captureIds': withoutImages ? <int>[] : List<int>.of(_pages),
               },
-            )
+            ).timeout(const Duration(seconds: 45))
             as Map,
       );
       if (!mounted) return;
@@ -1001,7 +1004,10 @@ class _QuizPanelState extends State<QuizPanel> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _notice = friendlyError(error);
+          _generationFailed = true;
+          _notice = error is TimeoutException
+              ? 'تأخر تجهيز الأسئلة. أعد المحاولة؛ ما تحتاج تعيد رفع الصور.'
+              : friendlyError(error);
           if (error is ApiException &&
               error.message.contains('Quiz topic is unclear')) {
             _needsTopic = true;
@@ -1076,10 +1082,19 @@ class _QuizPanelState extends State<QuizPanel> {
           if (_busy &&
               (_pendingAction == 'generate' ||
                   _pendingAction == 'generateWithoutImages')) ...[
-            const ProofNotice('جارٍ تجهيز الأسئلة…'),
+            const ProofNotice('جارٍ تجهيز الأسئلة… قد يستغرق حتى ٤٥ ثانية.'),
             const SizedBox(height: 12),
           ],
           if (_quiz == null) ...[
+            if (_generationFailed) ...[
+              AtButton(
+                'إعادة المحاولة',
+                onPressed: _busy ? null : () => _generate(
+                  withoutImages: _pendingAction == 'generateWithoutImages',
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (_needsTopic) ...[
               TextField(
                 controller: _topic,
@@ -1143,9 +1158,15 @@ class _QuizPanelState extends State<QuizPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${arabicDigits(i + 1)}. ${question['question']}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 28, child: Text(arabicDigits(i + 1))),
+                        Expanded(child: QuizQuestionText(
+                          '${question['question']}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        )),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     RadioGroup<String>(
@@ -1164,7 +1185,13 @@ class _QuizPanelState extends State<QuizPanel> {
                             RadioListTile<String>(
                               contentPadding: EdgeInsets.zero,
                               value: 'ABC'[option],
-                              title: Text('$text'),
+                              title: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(width: 26, child: Text('ABC'[option], textDirection: TextDirection.ltr)),
+                                  Expanded(child: QuizQuestionText(quizOptionBody('$text'))),
+                                ],
+                              ),
                             ),
                         ],
                       ),

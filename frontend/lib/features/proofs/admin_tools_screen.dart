@@ -93,7 +93,7 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
   if (m['accountStatus'] == 'SUSPENDED') return ('موقوف', c.danger, c.dangerSoft);
   if (m['accountStatus'] == 'DEACTIVATED') return ('معطّل منه', c.inkMuted, c.surfaceSunken);
   if (m['accountBanned'] == true) return ('محظور', c.danger, c.dangerSoft);
-  if (m['isLocked'] == true) return ('مقفول', c.warning, c.warningSoft);
+  if (m['isLocked'] == true) return ('معلّق', c.warning, c.warningSoft);
   return ('نشط', c.success, c.successSoft);
 }
 
