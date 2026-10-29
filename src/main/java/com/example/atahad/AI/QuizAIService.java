@@ -2,10 +2,12 @@ package com.example.atahad.AI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
+import java.time.Duration;
 
 @Service @RequiredArgsConstructor
 public class QuizAIService {
     private final OpenRouterClient client;
+    public static final Duration GENERATION_BUDGET = Duration.ofSeconds(35);
     private static final String PROMPT = """
             Generate exactly 4 multiple-choice questions in formal, clear Arabic to assess introductory understanding of the provided topic.
 
@@ -55,11 +57,16 @@ public class QuizAIService {
             C) option
             ANSWER: A or B or C
 
-            Do not include numbering, Markdown, explanations, introductions, or additional text.
+            Keep every format label in literal ASCII: Q:, A), B), C), ANSWER:.
+            Never translate A), B), C) into Arabic letters. ANSWER must be one Latin letter A, B or C.
+            Always finish all four questions. Do not include numbering, Markdown, explanations, introductions, or additional text.
             """;
     public String questions(String task,List<String> images) {
-        return client.complete(images.isEmpty()?"text":"vision",
+        return questions(task, images, GENERATION_BUDGET);
+    }
+    public String questions(String task, List<String> images, Duration remaining) {
+        return client.completeQuiz(images.isEmpty()?"text":"vision",
                 PROMPT,
-                "Task/topic: "+task,images,"");
+                "Task/topic: "+task,images,"",remaining);
     }
 }
