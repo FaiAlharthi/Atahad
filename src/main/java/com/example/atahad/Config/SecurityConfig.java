@@ -187,6 +187,7 @@ public class SecurityConfig {
                                 "/api/v1/commitment/get/{id}",
                                 "/api/v1/commitment/lockStatus",
                                 "/api/v1/commitment/stats",
+                                "/api/v1/commitment/learning-goal",
                                 "/api/v1/commitment-week/get/{id}",
                                 "/api/v1/commitment-week/getHistory/{commitmentId}",
                                 "/api/v1/commitment-week/getCurrent/{commitmentId}",

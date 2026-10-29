@@ -39,3 +39,5 @@ src/main/resources/application-local.properties
 
 # the uploaded photos and videos of the moments
 uploads/
+n8n/atahad-workflow-server.json
+n8n/atahad-weekly-report-server.json
