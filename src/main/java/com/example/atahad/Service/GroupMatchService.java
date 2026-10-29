@@ -66,8 +66,7 @@ public class GroupMatchService {
             if(size < GroupAccessService.MIN_MEMBERS){
                 continue;
             }
-            System.out.println("Opponent: " + other.getName());
-            System.out.println("Members Count: " + size);
+            System.out.println("Opponent: " + other.getName() + ", members: " + size);
 
             String answer = aiService.matchGroupGoals(
                     ourGoal.getTitle(),
@@ -83,13 +82,18 @@ public class GroupMatchService {
 
             try{
                 if(scoreText != null){
-                    score = Integer.parseInt(scoreText);
+                    // the AI may answer "85", "85/100" or "85%": the first number is the score
+                    java.util.regex.Matcher number = java.util.regex.Pattern.compile("\\d+").matcher(scoreText);
+                    if(number.find()){
+                        score = Integer.parseInt(number.group());
+                    }
                 }
             }catch(NumberFormatException e){
                 score = 0;
             }
 
             score = Math.max(0, Math.min(100, score));
+            System.out.println("Match score with " + other.getName() + ": " + score + " (AI: " + scoreText + ")");
 
             if(score < 65){
                 continue;

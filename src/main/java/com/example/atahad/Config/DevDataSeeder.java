@@ -203,6 +203,17 @@ public class DevDataSeeder implements ApplicationRunner {
         habitService.addHabit(subhiyyah.getId(), vocab);
         level(subhiyyah, "COMMITTED", 4, 90);
 
+        // ---------- fitness groups the AI can suggest to «تحسين اللياقة البدنية» (3 members, 3 times a week, like it) ----------
+        Member noura = member("نورة", "noura@atahad.test", "+966500000011");
+        Member hind = member("هند", "hind@atahad.test", "+966500000012");
+        Member lama = member("لمى", "lama@atahad.test", "+966500000013");
+        Member muneera = member("منيرة", "muneera@atahad.test", "+966500000014");
+        Member dana = member("دانة", "dana@atahad.test", "+966500000015");
+        Member asma = member("أسماء", "asma@atahad.test", "+966500000016");
+        rival(noura, "نمشي كل يوم", "مشي جماعي ونشجّع بعض", "مشي ٣٠ دقيقة", "PHOTO", null, 90, hind, lama);
+        rival(muneera, "نادي الصباح", "نروح النادي الصبح قبل الدوام", "تمرين بالنادي ٤٥ دقيقة", "PHOTO", null, 110, dana, hind);
+        rival(asma, "جري المساء", "نجري بعد المغرب", "جري ٢٠ دقيقة", "TIMER", 20, 70, lama, dana);
+
         // ---------- في: locked with 5 SAR, the bank email after mainSince pays it ----------
         Habit walk = new Habit();
         walk.setTitle("المشي اليومي");
@@ -399,6 +410,24 @@ public class DevDataSeeder implements ApplicationRunner {
         groupMember.setTitle(title);
         groupMember.setPoints(points);
         groupMemberRepository.save(groupMember);
+    }
+
+    // a small fitness group with an active goal of 3 times a week, so it can be challenged
+    private void rival(Member owner, String name, String description, String title, String method, Integer minutes,
+                       int points, Member... members) {
+        Group rival = group(owner, name, description);
+        join(rival, members);
+        GroupGoalRequest goal = new GroupGoalRequest();
+        goal.setTitle(title);
+        goal.setProofMethod(method);
+        goal.setTargetMinutes(minutes);
+        goal.setTimesPerWeek(3);
+        goal.setTotalWeeks(4);
+        goal.setAmountPerTime(new BigDecimal("5.00"));
+        GroupGoal active = groupGoalService.createGoal(rival.getId(), owner.getId(), goal);
+        done(active, owner, 1);
+        rival.setPoints(points);
+        groupRepository.save(rival);
     }
 
     private Group group(Member owner, String name, String description) {
