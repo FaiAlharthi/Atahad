@@ -1,6 +1,7 @@
 package com.example.atahad.AI;
 
 import jakarta.annotation.PostConstruct;
+import com.example.atahad.Api.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -27,15 +28,25 @@ public class OpenRouterClient {
     private String visionFallbacks = "google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free";
     @Value("${openrouter.fallbacks.timer:google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free}")
     private String timerFallbacks = "google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free";
+    // Separate quiz routing: no change to proof decisions, objections or timer coaching.
+    @Value("${openrouter.models.quiz-text:nvidia/nemotron-3.5-super-vl:free}")
+    private String quizTextModel = "";
+    @Value("${openrouter.models.quiz-vision:nvidia/nemotron-3.5-super-vl:free}")
+    private String quizVisionModel = "";
+    @Value("${openrouter.fallbacks.quiz-text:nvidia/nemotron-3.5-lightning:free,xingchen-agi/xing4.0-29b-a4b:free}")
+    private String quizTextFallbacks = "";
+    @Value("${openrouter.fallbacks.quiz-vision:dots-studio/dots-3-note-preview:free,google/gemma-4-26b-a4b-it:free}")
+    private String quizVisionFallbacks = "";
     private static final int MAX_ATTEMPTS = 3;
     private static final int REQUEST_SECONDS = 25;
     private static final Pattern DECISION = Pattern.compile("(?m)^\\s*DECISION:\\s*(ACCEPTED|REJECTED|ESCALATED)\\s*$");
     private static final Pattern REASON = Pattern.compile("(?m)^\\s*REASON:\\s*\\S");
     private static final Pattern QUESTION = Pattern.compile("Q:\\s*(.+?)\\s*\\n\\s*A\\)\\s*(.+?)\\s*\\n\\s*B\\)\\s*(.+?)\\s*\\n\\s*C\\)\\s*(.+?)\\s*\\n\\s*ANSWER:\\s*([ABCabc])");
     private final RestClient client;
+    private final HttpClient http;
 
     public OpenRouterClient() {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
+        http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofSeconds(REQUEST_SECONDS));
         client = RestClient.builder().requestFactory(factory).build();
@@ -50,6 +61,17 @@ public class OpenRouterClient {
     }
 
     public String complete(String purpose, String instructions, String prompt, List<String> images, String fallback) {
+        return complete(purpose, instructions, prompt, images, fallback, null);
+    }
+
+    public String completeQuiz(String purpose, String instructions, String prompt, List<String> images, String fallback, Duration budget) {
+        if (budget == null || budget.isNegative() || budget.isZero()) { throw quizTimeout(); }
+        return complete(purpose, instructions, prompt, images, fallback, budget);
+    }
+
+    private String complete(String purpose, String instructions, String prompt, List<String> images, String fallback, Duration quizBudget) {
+        boolean quiz = quizBudget != null;
+        long deadline = quiz ? System.nanoTime() + quizBudget.toNanos() : 0;
         if (!isConfigured()) {
             log.warn("OpenRouter {} skipped (key not configured)", purpose);
             return fallback;
@@ -57,6 +79,13 @@ public class OpenRouterClient {
         boolean vision = purpose.equals("vision") || (images != null && !images.isEmpty());
         String model = vision ? visionModel : purpose.equals("timer") ? timerModel : textModel;
         String alternatives = vision ? visionFallbacks : purpose.equals("timer") ? timerFallbacks : textFallbacks;
+        if (quiz) {
+            String primary = vision ? quizVisionModel : quizTextModel;
+            if (!primary.isBlank()) {
+                model = primary;
+                alternatives = vision ? quizVisionFallbacks : quizTextFallbacks;
+            }
+        }
         List<String> models = freeModels(model, alternatives);
         if (models.isEmpty()) {
             log.warn("OpenRouter {} skipped (no allowed free primary model)", purpose);
@@ -79,13 +108,26 @@ public class OpenRouterClient {
             long started = System.nanoTime();
             log.info("OpenRouter {} trying model={} attempt={}/{} images={}", purpose, candidate,
                     index + 1, models.size(), images == null ? 0 : images.size());
+            RestClient requestClient = client;
+            if (quiz) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) { throw quizTimeout(); }
+                JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
+                factory.setReadTimeout(Duration.ofNanos(Math.min(Duration.ofSeconds(12).toNanos(), remaining)));
+                requestClient = client.mutate().requestFactory(factory).build();
+            }
+            Map<String, Object> request = new LinkedHashMap<>();
+            request.put("model", candidate);
+            request.put("max_tokens", 1800);
+            request.put("messages", List.of(Map.of("role", "system", "content", instructions),
+                    Map.of("role", "user", "content", content)));
+            if (quiz) { request.put("reasoning", Map.of("effort", "none", "exclude", true)); }
             try {
-                Map<?, ?> response = client.post().uri(url).header("Authorization", "Bearer " + apiKey)
+                Map<?, ?> response = requestClient.post().uri(url).header("Authorization", "Bearer " + apiKey)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("model", candidate, "max_tokens", 1800,
-                                "messages", List.of(Map.of("role", "system", "content", instructions),
-                                        Map.of("role", "user", "content", content))))
+                        .body(request)
                         .retrieve().body(Map.class);
+                if (quiz && System.nanoTime() >= deadline) { throw quizTimeout(); }
                 String reply = readReply(response);
                 ReplyKind kind = reply == null ? ReplyKind.INVALID : classify(instructions, reply);
                 if (kind == ReplyKind.VALID) {
@@ -108,8 +150,13 @@ public class OpenRouterClient {
                         purpose, candidate, exception.getClass().getSimpleName(), cause.getClass().getSimpleName());
             }
         }
+        if (quiz && System.nanoTime() >= deadline) { throw quizTimeout(); }
         log.warn("OpenRouter {} exhausted {} models without a conclusive response", purpose, models.size());
         return uncertain == null ? fallback : uncertain;
+    }
+
+    private ApiException quizTimeout() {
+        return new ApiException("Quiz generation timed out; no quiz attempt was consumed");
     }
 
     private String readReply(Map<?, ?> response) {

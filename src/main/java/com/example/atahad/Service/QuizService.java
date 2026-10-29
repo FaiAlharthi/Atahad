@@ -77,7 +77,8 @@ public class QuizService {
             if (proof==null) { throw new ApiException("Start the proof attempt before attaching pages"); }
             for (Integer id:request.getCaptureIds()) { images.add(captures.use(memberId,id,"PAGE",proof.getId()).getImageData()); }
         }
-        String answer=quizAI.questions(subject,images);
+        long generationDeadline = System.nanoTime() + QuizAIService.GENERATION_BUDGET.toNanos();
+        String answer=quizAI.questions(subject,images,remainingGenerationTime(generationDeadline));
         if (answer.contains("READABLE: NO")) {
             if (proof==null) { throw new ApiException("Page images are unreadable"); }
             boolean reuploadRequested = proof.getPageReuploadRequested() != null && proof.getPageReuploadRequested();
@@ -85,7 +86,7 @@ public class QuizService {
                 proof.setPageReuploadRequested(true); proofs.save(proof);
                 return new QuizResponse(null,subject,List.of(),"REUPLOAD_PAGES: صوّر الصفحات بوضوح مرة ثانية، ولا تحتسب هذه محاولة اختبار");
             }
-            answer=quizAI.questions(subject,List.of());
+            answer=quizAI.questions(subject,List.of(),remainingGenerationTime(generationDeadline));
         }
         if (answer.trim().equals("TOPIC: UNCLEAR")) {
             throw new ApiException("Quiz topic is unclear; specify the activity topic; no quiz attempt was consumed");
@@ -133,6 +134,11 @@ public class QuizService {
             if (date.equals(day) && sameTask(quiz.getGoalTask(),task)) { list.add(quiz); }
         }
         return list;
+    }
+    private Duration remainingGenerationTime(long deadline) {
+        long remaining = deadline - System.nanoTime();
+        if (remaining <= 0) { throw new ApiException("Quiz generation timed out; no quiz attempt was consumed"); }
+        return Duration.ofNanos(remaining);
     }
     private boolean sameTask(GoalTask a,GoalTask b) { return a==null?b==null:b!=null && a.getId().equals(b.getId()); }
     private QuizResponse response(Quiz quiz) {

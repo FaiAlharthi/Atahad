@@ -129,6 +129,9 @@ String friendlyError(Object error) {
   if (raw.contains('Quiz topic is unclear')) {
     return 'حدّد موضوع النشاط بشكل أوضح ثم أعد التجهيز. لم تُحتسب عليك محاولة.';
   }
+  if (raw.contains('Quiz generation timed out')) {
+    return 'تأخر تجهيز الأسئلة. أعد المحاولة؛ لم تُحتسب عليك محاولة اختبار.';
+  }
   if (raw.contains('no quiz attempt') || raw.contains('Quiz generation')) {
     return 'تعذر تجهيز الأسئلة الآن. حاول لاحقًا، لم تُحتسب عليك محاولة.';
   }
